@@ -55,6 +55,13 @@ const getEligibleOrders = asyncHandler(async (req, res) => {
     throw new AppError("Invalid date range provided", 400);
   }
 
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, userId },
+  });
+  if (!customer) {
+    throw new AppError("Customer not found", 404);
+  }
+
   const orders = await prisma.order.findMany({
     where: {
       userId,
@@ -65,10 +72,29 @@ const getEligibleOrders = asyncHandler(async (req, res) => {
         lte: toDate,
       },
     },
-    include: {
-      customer: true,
-      manufacturer: true,
-      quality: true,
+    select: {
+      id: true,
+      orderNo: true,
+      rate: true,
+      quantity: true,
+      quantityUnit: true,
+      lot: true,
+      lotMeters: true,
+      meter: true,
+      commissionAmount: true,
+      orderDate: true,
+      manufacturerFirmName: true,
+      quality: {
+        select: {
+          name: true,
+        },
+      },
+      manufacturer: {
+        select: {
+          name: true,
+          firmName: true,
+        },
+      },
       paymentOrderAllocations: {
         select: {
           paymentEntryId: true,
@@ -83,7 +109,7 @@ const getEligibleOrders = asyncHandler(async (req, res) => {
   const excludeEntryId = req.query.excludePaymentEntryId || null;
 
   const formattedOrders = orders.map((order) => {
-    const commissionAmount = computeOrderFullCommission(order, order.customer);
+    const commissionAmount = computeOrderFullCommission(order, customer);
     const relevantAllocations = excludeEntryId
       ? order.paymentOrderAllocations.filter(
           (alloc) => alloc.paymentEntryId !== excludeEntryId,
@@ -117,10 +143,11 @@ const getEligibleOrders = asyncHandler(async (req, res) => {
       rate: round2(order.rate).toFixed(2),
       date: formatCellDate(order.orderDate),
       rawDate: order.orderDate,
-      partyFirmName: order.manufacturer?.firmName || "",
+      partyFirmName:
+        order.manufacturerFirmName || order.manufacturer?.firmName || "",
       partyName: order.manufacturer?.name || "",
-      customerFirmName: order.customer?.firmName || "",
-      customerName: order.customer?.name || "",
+      customerFirmName: customer?.firmName || "",
+      customerName: customer?.name || "",
     };
   });
 

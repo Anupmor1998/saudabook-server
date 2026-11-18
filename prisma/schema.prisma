@@ -213,6 +213,7 @@ model Order {
   @@index([customerId])
   @@index([manufacturerId])
   @@index([qualityId])
+  @@index([userId, customerId, orderDate])
 }
 
 model OrderActivity {
